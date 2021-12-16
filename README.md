@@ -1,7 +1,7 @@
 # hdlog
 a simple lightweight Log Library
 
-This Library can be used in Windows & Linux with only single .h file.
+This Library can be used in Windows & Linux with only single hdlog.h file.
 
 I wrote this just for my personal use, and anyone is welcome to use it.
 
