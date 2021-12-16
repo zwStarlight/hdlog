@@ -1,0 +1,22 @@
+#include "hdlog.h"
+
+//set log level
+hdlog::SetLevel(hdlog::LogLevel::Info);
+
+//now, this will not display
+hdlog::trace("this is a {} test.", "trace");
+
+//now, this will not display
+hdlog::debug("this is a {} test.", "debug");
+
+//this will work
+hdlog::info("this is a {} test.", "info");
+hdlog::warn("this is a {} test.", "warn");
+hdlog::error("this is a {} test.", "error");
+
+
+//set pattern, default pattern is "{}"
+hdlog::SetPattern("[]");
+
+hdlog::info("this is a [] test.", "pattern");
+
