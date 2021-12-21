@@ -24,9 +24,3 @@ hdlog::debug_to_file("log.txt", "this is a {} test.", "file");
 hdlog::info_to_file("log.txt", "this is a {} test.", "file");
 hdlog::warn_to_file("log.txt", "this is a {} test.", "file");
 hdlog::error_to_file("log.txt", "this is a {} test.", "file");
-
-
-![image](https://github.com/zwStarlight/hdlog/blob/main/result1.png)
-
-
-![image](https://github.com/zwStarlight/hdlog/blob/main/result2.png)
