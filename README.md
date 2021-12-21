@@ -10,7 +10,7 @@ If there are bugs or good suggestions, welcome to discuss.
 
 
 
-![image](https://github.com/zwStarlight/hdlog/blob/main/result1.png)
+![result1](https://github.com/zwStarlight/hdlog/blob/main/result1.png)
 
 
-![image](https://github.com/zwStarlight/hdlog/blob/main/result2.png)
+![result2](https://github.com/zwStarlight/hdlog/blob/main/result2.png)
