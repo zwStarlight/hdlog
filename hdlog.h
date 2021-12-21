@@ -5,10 +5,12 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <io.h>
 #else
 #include <chrono>
 #include <memory>
 #include <stdarg.h>
+#include <unistd.h>
 
 #define RESET "\033[0m"
 #define BLACK "\033[30m" /* Black */
@@ -31,10 +33,12 @@
 
 #include <time.h>
 #include <iostream>
+#include <fstream>
 #include <mutex>
 #include <vector>
 #include <string>
 #include <sstream>
+#include <map>
 #include <exception>
 
 namespace hdlog
@@ -47,10 +51,12 @@ namespace hdlog
 		Warn,
 		Error
 	};
-
+	
 	static std::mutex io_mutex;
+	static std::map<std::string, std::mutex> file_mutex;
 	static LogLevel level = LogLevel::Info;
 	static std::string pattern = "{}";
+	static const std::string enumstring[] = {"Trace", "Debug", "Info", "Warn", "Error"};
 
 	inline std::string GetSystemTime()
 	{
@@ -107,7 +113,7 @@ namespace hdlog
 	{
 		std::string::size_type pos;
 		std::vector<std::string> result;
-		str += pattern;//¿©’π◊÷∑˚¥Æ“‘∑Ω±„≤Ÿ◊˜
+		str += pattern;//Êâ©Â±ïÂ≠óÁ¨¶‰∏≤‰ª•Êñπ‰æøÊìç‰Ωú
 		int size = str.size();
 
 		for (int i = 0; i < size; i++)
@@ -123,6 +129,35 @@ namespace hdlog
 		return result;
 	}
 
+	inline bool Exist(const char *name)
+	{
+#ifdef _WIN32
+		return _access(name, 0) != -1;
+#else
+		int r = access(name, F_OK);
+		return r == 0;
+#endif // linux
+
+		return true;
+	}
+
+	inline bool WriteToFile(std::string filename, std::string content)
+	{
+		std::ofstream file(filename, std::ios::binary | std::ios::app);
+
+		if (file.good())
+		{
+			file << content << "\n";
+			file.close();
+
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
 	inline void SetLevel(LogLevel Level)
 	{
 		std::lock_guard<std::mutex> guard(io_mutex);
@@ -133,6 +168,12 @@ namespace hdlog
 	{
 		std::lock_guard<std::mutex> guard(io_mutex);
 		pattern = pat;
+	}
+
+	inline void Clear()
+	{
+		std::lock_guard<std::mutex> guard(io_mutex);
+		file_mutex.clear();
 	}
 
 	inline std::ostream& Red(std::ostream& s)
@@ -216,12 +257,12 @@ namespace hdlog
 	}
 
 	template<typename... Args>
-	inline void trace(std::string content, Args... args)
+	inline void level_to_out(std::string content, LogLevel Level, Args... args)
 	{
 		try
 		{
 			std::lock_guard<std::mutex> guard(io_mutex);
-			if (level > LogLevel::Trace) return;
+			if (level > Level) return;
 
 			std::vector<std::string> cs = split(content, pattern);
 
@@ -229,36 +270,47 @@ namespace hdlog
 			paramcount = sizeof...(args);
 
 			int amount = cs.size();
-
-			if (paramcount == 0 || amount == 1)
+			
+			if (Level == LogLevel::Trace)
 			{
-				std::cout << GetSystemTime().c_str() << " [" << White << "Trace" << Reset << "] " << content << std::endl;
+				std::cout << GetSystemTime().c_str() << " [" << White << enumstring[(int)Level] << Reset << "] ";
+			}
+			else if (Level == LogLevel::Debug)
+			{
+				std::cout << GetSystemTime().c_str() << " [" << Blue << enumstring[(int)Level] << Reset << "] ";
+			}
+			else if (Level == LogLevel::Warn)
+			{
+				std::cout << GetSystemTime().c_str() << " [" << Yellow << enumstring[(int)Level] << Reset << "] ";
+			}
+			else if (Level == LogLevel::Error)
+			{
+				std::cout << GetSystemTime().c_str() << " [" << Red << enumstring[(int)Level] << Reset << "] ";
 			}
 			else
 			{
+				std::cout << GetSystemTime().c_str() << " [" << Green << enumstring[(int)Level] << Reset << "] ";
+			}
+
+			if (paramcount == 0 || amount == 1)
+			{
+				std::cout << content << std::endl;
+			}
+			else
+			{
+				std::vector<std::string> paramlist;
+
+				Log(paramlist, args...);
+
 				if (amount - 1 < paramcount)
 				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << White << "Trace" << Reset << "] ";
-
 					for (int i = 0; i < amount - 1; ++i)
 					{
 						std::cout << cs[i] << paramlist[i];
 					}
-
-					std::cout << cs[amount - 1] << std::endl;
 				}
 				else
 				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << White << "Trace" << Reset << "] ";
-
 					for (int i = 0; i < paramcount; ++i)
 					{
 						std::cout << cs[i] << paramlist[i];
@@ -267,272 +319,137 @@ namespace hdlog
 					for (int i = paramcount; i < amount - 1; ++i)
 					{
 						std::cout << cs[i] << pattern;
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
+					}					
 				}
+				
+				std::cout << cs[amount - 1] << std::endl;
 			}
 		}
 		catch (std::exception& ex)
 		{
 			std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << ex.what() << std::endl;
 		}
+	}
+	
+	template<typename... Args>
+	inline void level_to_file(std::string filename, std::string content, LogLevel loglevel, Args... args)
+	{
+		try
+		{
+			std::lock_guard<std::mutex> guard(file_mutex[filename]);
+
+			if (level > loglevel) return;
+
+			std::vector<std::string> cs = split(content, pattern);
+
+			std::string filedata = GetSystemTime() + " [" + enumstring[(int)loglevel] + "] ";
+			int paramcount = 0;
+			paramcount = sizeof...(args);
+
+			int amount = cs.size();
+
+			if (paramcount == 0 || amount == 1)
+			{
+				filedata += content;
+			}
+			else
+			{
+				std::vector<std::string> paramlist;
+
+				Log(paramlist, args...);
+
+				if (amount - 1 < paramcount)
+				{					
+					for (int i = 0; i < amount - 1; ++i)
+					{
+						filedata += cs[i] + paramlist[i];
+					}
+				}
+				else
+				{
+					for (int i = 0; i < paramcount; ++i)
+					{
+						filedata += cs[i] + paramlist[i];
+					}
+
+					for (int i = paramcount; i < amount - 1; ++i)
+					{
+						filedata += cs[i] + pattern;
+					}					
+				}
+
+				filedata += cs[amount - 1];
+			}
+
+			if (!WriteToFile(filename, filedata))
+			{
+				std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << "Write log file failed!" << std::endl;
+			}
+		}
+		catch (std::exception& ex)
+		{
+			std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << ex.what() << std::endl;
+		}
+	}
+
+	template<typename... Args>
+	inline void trace(std::string content, Args... args)
+	{
+		level_to_out(content, LogLevel::Trace, args...);
 	}
 
 	template<typename... Args>
 	inline void debug(std::string content, Args... args)
 	{
-		try
-		{
-			std::lock_guard<std::mutex> guard(io_mutex);
-			if (level > LogLevel::Debug) return;
-
-			std::vector<std::string> cs = split(content, pattern);
-
-			int paramcount = 0;
-			paramcount = sizeof...(args);
-
-			int amount = cs.size();
-
-			if (paramcount == 0 || amount == 1)
-			{
-				std::cout << GetSystemTime().c_str() << " [" << Blue << "Debug" << Reset << "] " << content << std::endl;
-			}
-			else
-			{
-				if (amount - 1 < paramcount)
-				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Blue << "Debug" << Reset << "] ";
-
-					for (int i = 0; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-				else
-				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Blue << "Debug" << Reset << "] ";
-
-					for (int i = 0; i < paramcount; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					for (int i = paramcount; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << pattern;
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-			}
-		}
-		catch (std::exception& ex)
-		{
-			std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << ex.what() << std::endl;
-		}
+		level_to_out(content, LogLevel::Debug, args...);
 	}
 
 	template<typename... Args>
 	inline void info(std::string content, Args... args)
 	{
-		try
-		{
-			std::lock_guard<std::mutex> guard(io_mutex);
-			if (level > LogLevel::Info) return;
-
-			std::vector<std::string> cs = split(content, pattern);
-
-			int paramcount = 0;
-			paramcount = sizeof...(args);
-
-			int amount = cs.size();
-
-			if (paramcount == 0 || amount == 1)
-			{
-				std::cout << GetSystemTime().c_str() << " [" << Green << "Info" << Reset << "] " << content << std::endl;
-			}
-			else
-			{
-				if (amount - 1 < paramcount)
-				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Green << "Info" << Reset << "] ";
-
-					for (int i = 0; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-				else
-				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Green << "Info" << Reset << "] ";
-
-					for (int i = 0; i < paramcount; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					for (int i = paramcount; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << pattern;
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-			}
-		}
-		catch (std::exception& ex)
-		{
-			std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << ex.what() << std::endl;
-		}
+		level_to_out(content, LogLevel::Info, args...);
 	}
 
 	template<typename... Args>
 	inline void warn(std::string content, Args... args)
 	{
-		try
-		{
-			std::lock_guard<std::mutex> guard(io_mutex);
-			if (level > LogLevel::Warn) return;
-
-			std::vector<std::string> cs = split(content, pattern);
-
-			int paramcount = 0;
-			paramcount = sizeof...(args);
-
-			int amount = cs.size();
-
-			if (paramcount == 0 || amount == 1)
-			{
-				std::cout << GetSystemTime().c_str() << " [" << Yellow << "Warn" << Reset << "] " << content << std::endl;
-			}
-			else
-			{
-				if (amount - 1 < paramcount)
-				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Yellow << "Warn" << Reset << "] ";
-
-					for (int i = 0; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-				else
-				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Yellow << "Warn" << Reset << "] ";
-
-					for (int i = 0; i < paramcount; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					for (int i = paramcount; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << pattern;
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-			}
-		}
-		catch (std::exception& ex)
-		{
-			std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << ex.what() << std::endl;
-		}
+		level_to_out(content, LogLevel::Warn, args...);
 	}
 
 	template<typename... Args>
 	inline void error(std::string content, Args... args)
 	{
-		try
-		{
-			std::lock_guard<std::mutex> guard(io_mutex);
-			if (level > LogLevel::Error) return;
+		level_to_out(content, LogLevel::Error, args...);
+	}
 
-			std::vector<std::string> cs = split(content, pattern);
+	template<typename... Args>
+	inline void trace_to_file(std::string filename, std::string content, Args... args)
+	{
+		level_to_file(filename, content, LogLevel::Trace, args...);
+	}
 
-			int paramcount = 0;
-			paramcount = sizeof...(args);
+	template<typename... Args>
+	inline void debug_to_file(std::string filename, std::string content, Args... args)
+	{
+		level_to_file(filename, content, LogLevel::Debug, args...);
+	}
 
-			int amount = cs.size();
+	template<typename... Args>
+	inline void info_to_file(std::string filename, std::string content, Args... args)
+	{
+		level_to_file(filename, content, LogLevel::Info, args...);
+	}
 
-			if (paramcount == 0 || amount == 1)
-			{
-				std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << content << std::endl;
-			}
-			else
-			{
-				if (amount - 1 < paramcount)
-				{
-					std::vector<std::string> paramlist;
+	template<typename... Args>
+	inline void warn_to_file(std::string filename, std::string content, Args... args)
+	{
+		level_to_file(filename, content, LogLevel::Warn, args...);
+	}
 
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] ";
-
-					for (int i = 0; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-				else
-				{
-					std::vector<std::string> paramlist;
-
-					Log(paramlist, args...);
-
-					std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] ";
-
-					for (int i = 0; i < paramcount; ++i)
-					{
-						std::cout << cs[i] << paramlist[i];
-					}
-
-					for (int i = paramcount; i < amount - 1; ++i)
-					{
-						std::cout << cs[i] << pattern;
-					}
-
-					std::cout << cs[amount - 1] << std::endl;
-				}
-			}
-		}
-		catch (std::exception& ex)
-		{
-			std::cout << GetSystemTime().c_str() << " [" << Red << "Error" << Reset << "] " << ex.what() << std::endl;
-		}
+	template<typename... Args>
+	inline void error_to_file(std::string filename, std::string content, Args... args)
+	{
+		level_to_file(filename, content, LogLevel::Error, args...);
 	}
 }
 
