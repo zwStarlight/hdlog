@@ -6,3 +6,11 @@ This Library can be used in Windows & Linux with only single hdlog.h file. Multi
 I wrote this just for my personal use, and anyone is welcome to use it.
 
 If there are bugs or good suggestions, welcome to discuss.
+
+
+
+
+![image](https://github.com/zwStarlight/hdlog/blob/main/result1.png)
+
+
+![image](https://github.com/zwStarlight/hdlog/blob/main/result2.png)
