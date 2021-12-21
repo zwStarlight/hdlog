@@ -3,13 +3,11 @@
 //set log level
 hdlog::SetLevel(hdlog::LogLevel::Info);
 
-//now, this will not display
+//now, these will not display
 hdlog::trace("this is a {} test.", "trace");
-
-//now, this will not display
 hdlog::debug("this is a {} test.", "debug");
 
-//this will work
+//these will work
 hdlog::info("this is a {} test.", "info");
 hdlog::warn("this is a {} test.", "warn");
 hdlog::error("this is a {} test.", "error");
@@ -20,3 +18,9 @@ hdlog::SetPattern("[]");
 
 hdlog::info("this is a [] test.", "pattern");
 
+//write log file
+hdlog::trace_to_file("log.txt", "this is a {} test.", "file");
+hdlog::debug_to_file("log.txt", "this is a {} test.", "file");
+hdlog::info_to_file("log.txt", "this is a {} test.", "file");
+hdlog::warn_to_file("log.txt", "this is a {} test.", "file");
+hdlog::error_to_file("log.txt", "this is a {} test.", "file");
