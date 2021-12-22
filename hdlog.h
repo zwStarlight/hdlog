@@ -7,7 +7,8 @@
 #include <windows.h>
 #include <io.h>
 #else
-#include <chrono>
+//#include <chrono>
+#include <sys/time.h>
 #include <memory>
 #include <stdarg.h>
 #include <unistd.h>
@@ -91,20 +92,32 @@ namespace hdlog
 
 		return strTime;
 #else
-		std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds> tp = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
-		auto tmp = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch());
-		std::time_t timestamp = tmp.count();
+		//std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds> tp = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
+		//auto tmp = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch());
+		//std::time_t timestamp = tmp.count();
 
-		uint64_t milli = timestamp;
-		milli += (uint64_t)8 * 60 * 60 * 1000;
-		auto mTime = std::chrono::milliseconds(milli);
-		tp = std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>(mTime);
-		auto tt = std::chrono::system_clock::to_time_t(tp);
-		std::tm* now = std::gmtime(&tt);
+		//uint64_t milli = timestamp;
+		//milli += (uint64_t)8 * 60 * 60 * 1000;
+		//auto mTime = std::chrono::milliseconds(milli);
+		//tp = std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>(mTime);
+		//auto tt = std::chrono::system_clock::to_time_t(tp);
+		//std::tm* now = std::gmtime(&tt);
 
+		//char rst[27] = { 0 };
+		//sprintf(rst, "[%04d-%02d-%02d %02d:%02d:%02d.%03d]", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec, std::atoi(std::to_string(timestamp % 1000000).substr(3, 3).c_str()));
+
+		struct tm* now;
+		struct timeval time;
+
+		gettimeofday(&time, NULL);
+		now = localtime(&time.tv_sec);
+		
 		char rst[27] = { 0 };
-		sprintf(rst, "[%04d-%02d-%02d %02d:%02d:%02d.%03d]", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec, std::atoi(std::to_string(timestamp % 1000000).substr(3, 3).c_str()));
-
+		if (NULL != now)
+		{
+			sprintf(rst, "[%04d-%02d-%02d %02d:%02d:%02d.%03d]", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec, time.tv_usec/1000);
+		}
+		
 		return rst;
 #endif
 	}
